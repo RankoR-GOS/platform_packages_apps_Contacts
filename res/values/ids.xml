@@ -53,23 +53,11 @@
     <!-- Menu ID for Contacts menu -->
     <item type="id" name="nav_all_contacts" />
 
-    <!-- Menu ID for Suggestions menu -->
-    <item type="id" name="nav_assistant" />
-
-    <!-- Menu ID for group header -->
+    <!-- Menu ID for Labels menu -->
     <item type="id" name="nav_groups" />
 
-    <!-- Menu ID for each group menu item -->
-    <item type="id" name="nav_group" />
-
-    <!-- Menu ID for create label menu item -->
-    <item type="id" name="nav_create_label" />
-
-    <!-- Menu ID for filter header -->
-    <item type="id" name="nav_filters" />
-
-    <!-- Menu ID for each filter menu item -->
-    <item type="id" name="nav_filter" />
+    <!-- Menu ID for Accounts menu -->
+    <item type="id" name="nav_accounts" />
 
     <!-- Menu ID for Settings menu -->
     <item type="id" name="nav_settings" />
@@ -77,17 +65,8 @@
     <!-- Menu ID for help & feedback  menu -->
     <item type="id" name="nav_help" />
 
-    <!-- For vcard.ImportVCardActivity -->
-    <item type="id" name="dialog_cache_vcard"/>
-    <item type="id" name="dialog_error_with_message"/>
-
-    <!-- For vcard.CancelActivity -->
-    <item type="id" name="dialog_cancel_confirmation"/>
-    <item type="id" name="dialog_cancel_failed"/>
-
-    <!-- For ExportVCardActivity -->
-    <item type="id" name="dialog_exporting_vcard"/>
-    <item type="id" name="dialog_fail_to_export_with_reason"/>
+    <!-- Menu ID for Debug menu -->
+    <item type="id" name="nav_debug" />
 
     <!-- For Debug Purpose -->
     <item type="id" name="cliv_name_textview"/>

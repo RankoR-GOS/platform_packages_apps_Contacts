@@ -20,8 +20,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.provider.ContactsContract;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
-
-import com.android.contacts.compat.PhoneNumberUtilsCompat;
+import android.telephony.PhoneNumberUtils;
 
 /**
  * Represents a phone data item, wrapping the columns in
@@ -38,6 +37,14 @@ public class PhoneDataItem extends DataItem {
 
     /* package */ PhoneDataItem(ContentValues values) {
         super(values);
+    }
+
+    public String getPreferredPhoneAccountComponentName() {
+        return getContentValues().getAsString(Phone.PREFERRED_PHONE_ACCOUNT_COMPONENT_NAME);
+    }
+
+    public String getPreferredPhoneAccountId() {
+        return getContentValues().getAsString(Phone.PREFERRED_PHONE_ACCOUNT_ID);
     }
 
     public String getNumber() {
@@ -78,7 +85,7 @@ public class PhoneDataItem extends DataItem {
     public void computeFormattedPhoneNumber(String defaultCountryIso) {
         final String phoneNumber = getNumber();
         if (phoneNumber != null) {
-            final String formattedPhoneNumber = PhoneNumberUtilsCompat.formatNumber(phoneNumber,
+            final String formattedPhoneNumber = PhoneNumberUtils.formatNumber(phoneNumber,
                     getNormalizedNumber(), defaultCountryIso);
             getContentValues().put(KEY_FORMATTED_PHONE_NUMBER, formattedPhoneNumber);
         }

@@ -15,14 +15,12 @@
 }
 
 # Needed for tests
--keep class com.android.contacts.compat.CompatUtils { *; }
 -keep class com.android.contacts.Collapser { *; }
 -keep class com.android.contacts.ContactPhotoManager { *; }
 -keep class com.android.contacts.ContactsApplication { *; }
 -keep class com.android.contacts.ContactsUtils { *; }
 -keep class com.android.contacts.ContactSaveService { *; }
 -keep class com.android.contacts.ContactSaveService$* { *; }
--keep class com.android.contacts.database.NoNullCursorAsyncQueryHandler { *; }
 -keep class com.android.contacts.database.SimContactDao { *; }
 -keep class com.android.contacts.database.SimContactDao$* { *; }
 -keep class com.android.contacts.database.SimContactDaoImpl { *; }
@@ -38,7 +36,6 @@
 -keep class com.android.contacts.list.ContactsSectionIndexer { *; }
 -keep class com.android.contacts.location.CountryDetector { *; }
 -keep class com.android.contacts.model.account.AccountDisplayInfo { *; }
--keep class com.android.contacts.model.account.AccountDisplayInfoFactory { *; }
 -keep class com.android.contacts.model.account.AccountInfo { *; }
 -keep class com.android.contacts.model.account.AccountType { *; }
 -keep class com.android.contacts.model.account.AccountType$* { *; }
@@ -54,10 +51,8 @@
 -keep class com.android.contacts.model.account.SimAccountType { *; }
 -keep class com.android.contacts.model.AccountTypeManager { *; }
 -keep class com.android.contacts.model.AccountTypeManagerImpl { *; }
--keep class com.android.contacts.model.BuilderWrapper { *; }
 -keep class com.android.contacts.model.Contact { *; }
 -keep class com.android.contacts.model.ContactLoader { *; }
--keep class com.android.contacts.model.CPOWrapper { *; }
 -keep class com.android.contacts.model.dataitem.DataItem { *; }
 -keep class com.android.contacts.model.dataitem.DataKind { *; }
 -keep class com.android.contacts.model.dataitem.EmailDataItem { *; }
@@ -96,7 +91,6 @@
 -keep class com.android.contacts.util.SearchUtil { *; }
 -keep class com.android.contacts.util.SearchUtil$* { *; }
 -keep class com.android.contacts.util.SyncUtil { *; }
--keep class com.android.contacts.widget.CompositeListAdapter { *; }
 -keep class com.google.common.base.Function { *; }
 -keep class com.google.common.base.Functions { *; }
 -keep class com.google.common.base.Objects { *; }

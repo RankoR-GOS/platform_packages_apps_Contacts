@@ -1,16 +1,36 @@
 package com.android.contacts.di.core
 
+import android.content.ClipboardManager
+import android.content.ContentResolver
+import android.content.Context
+import android.content.pm.PackageManager
+import android.content.pm.ShortcutManager
+import android.content.res.Resources
+import android.os.PowerManager
+import android.os.UserManager
+import android.telecom.TelecomManager
+import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
+import androidx.core.text.BidiFormatter
+import com.android.contacts.util.concurrent.ContactsExecutors
+import com.android.contacts.util.core.CurrentTimeProvider
 import dagger.Module
 import dagger.Provides
 import dagger.Reusable
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.io.File
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 
 @Module
 @InstallIn(SingletonComponent::class)
 internal class CoreProvidesModule {
+
+    // Coroutine Dispatchers
 
     @Provides
     @Reusable
@@ -31,5 +51,129 @@ internal class CoreProvidesModule {
     @MainDispatcher
     fun provideMainDispatcher(): CoroutineDispatcher {
         return Dispatchers.Main
+    }
+
+    @Provides
+    @Reusable
+    @MainImmediateDispatcher
+    fun provideMainImmediateDispatcher(): CoroutineDispatcher {
+        return Dispatchers.Main.immediate
+    }
+
+    @Provides
+    @Reusable
+    @SimReadDispatcher
+    fun provideSimReadDispatcher(): CoroutineDispatcher {
+        return ContactsExecutors.getSimReadExecutor().asCoroutineDispatcher()
+    }
+
+    // Folders
+
+    @Provides
+    @Reusable
+    @CacheDir
+    fun provideCacheDir(
+        @ApplicationContext context: Context,
+    ): File {
+        return context.cacheDir
+    }
+
+    // Others
+
+    @Provides
+    @Reusable
+    fun provideTelephonyManager(
+        @ApplicationContext context: Context,
+    ): TelephonyManager {
+        return context.getSystemService(TelephonyManager::class.java)
+    }
+
+    @Provides
+    @Reusable
+    fun provideTelecomManager(
+        @ApplicationContext context: Context,
+    ): TelecomManager {
+        return context.getSystemService(TelecomManager::class.java)
+    }
+
+    @Provides
+    @Reusable
+    fun provideClipboardManager(
+        @ApplicationContext context: Context,
+    ): ClipboardManager {
+        return context.getSystemService(ClipboardManager::class.java)
+    }
+
+    @Provides
+    @Reusable
+    fun provideShortcutManager(
+        @ApplicationContext context: Context,
+    ): ShortcutManager {
+        return context.getSystemService(ShortcutManager::class.java)
+    }
+
+    @Provides
+    @Reusable
+    fun providePackageManager(
+        @ApplicationContext context: Context,
+    ): PackageManager {
+        return context.packageManager
+    }
+
+    @Provides
+    @Reusable
+    fun provideContentResolver(
+        @ApplicationContext context: Context,
+    ): ContentResolver {
+        return context.contentResolver
+    }
+
+    @Provides
+    @Reusable
+    fun provideCurrentTimeProvider(): CurrentTimeProvider {
+        return CurrentTimeProvider { System.currentTimeMillis() }
+    }
+
+    @Provides
+    @Reusable
+    fun provideSubscriptionManager(
+        @ApplicationContext context: Context,
+    ): SubscriptionManager {
+        return context.getSystemService(SubscriptionManager::class.java)
+    }
+
+    @Provides
+    @Reusable
+    fun provideUserManager(
+        @ApplicationContext context: Context,
+    ): UserManager {
+        return context.getSystemService(UserManager::class.java)
+    }
+
+    @Provides
+    fun provideBidiFormatter(): BidiFormatter {
+        return BidiFormatter.getInstance()
+    }
+
+    @Provides
+    @Reusable
+    fun providePowerManager(
+        @ApplicationContext context: Context,
+    ): PowerManager {
+        return context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    }
+
+    @Provides
+    @Reusable
+    fun provideRandom(): Random {
+        return Random
+    }
+
+    @Provides
+    @Reusable
+    fun provideResources(
+        @ApplicationContext context: Context,
+    ): Resources {
+        return context.resources
     }
 }

@@ -17,37 +17,18 @@
 package com.android.contacts.activities;
 
 import android.Manifest;
-import android.accounts.Account;
 import android.app.Fragment;
 import android.app.FragmentManager;
 import android.app.FragmentTransaction;
-import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
-import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SyncStatusObserver;
 import android.content.res.Configuration;
 import android.graphics.Color;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.provider.ContactsContract;
-import android.provider.ContactsContract.Intents;
 import android.provider.ContactsContract.ProviderStatus;
-import androidx.annotation.LayoutRes;
-import androidx.appcompat.graphics.drawable.DrawerArrowDrawable;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
-import com.google.android.material.snackbar.Snackbar;
-import androidx.core.content.ContextCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-import androidx.core.view.GravityCompat;
-import androidx.drawerlayout.widget.DrawerLayout;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
-import androidx.appcompat.app.ActionBarDrawerToggle;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
@@ -57,21 +38,30 @@ import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.ImageButton;
-import android.widget.Toast;
+
+import androidx.annotation.LayoutRes;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.ActionBarDrawerToggle;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.graphics.drawable.DrawerArrowDrawable;
+import androidx.appcompat.widget.Toolbar;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.content.ContextCompat;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.android.contacts.AppCompatContactsActivity;
 import com.android.contacts.ContactSaveService;
 import com.android.contacts.R;
-import com.android.contacts.compat.CompatUtils;
+import com.android.contacts.domain.accounts.mapper.ContactsAccountFilterMapper;
+import com.android.contacts.domain.accounts.model.ContactsAccountFilter;
+import com.android.contacts.domain.accounts.usecase.CanSwitchAccounts;
+import com.android.contacts.domain.groups.GroupEvents;
+import com.android.contacts.domain.groups.model.GroupDeletion;
 import com.android.contacts.drawer.DrawerFragment;
 import com.android.contacts.drawer.DrawerFragment.DrawerFragmentListener;
 import com.android.contacts.editor.ContactEditorFragment;
-import com.android.contacts.editor.SelectAccountDialogFragment;
-import com.android.contacts.group.GroupListItem;
-import com.android.contacts.group.GroupMembersFragment;
-import com.android.contacts.group.GroupNameEditDialogFragment;
-import com.android.contacts.group.GroupUtil;
-import com.android.contacts.list.AccountFilterActivity;
 import com.android.contacts.list.ContactListFilter;
 import com.android.contacts.list.ContactListFilterController;
 import com.android.contacts.list.ContactListFilterController.ContactListFilterListener;
@@ -79,7 +69,6 @@ import com.android.contacts.list.ContactsIntentResolver;
 import com.android.contacts.list.ContactsRequest;
 import com.android.contacts.list.ContactsUnavailableFragment;
 import com.android.contacts.list.DefaultContactBrowseListFragment;
-import com.android.contacts.list.MultiSelectContactsListFragment;
 import com.android.contacts.list.ProviderStatusWatcher;
 import com.android.contacts.list.ProviderStatusWatcher.ProviderStatusListener;
 import com.android.contacts.logging.Logger;
@@ -87,7 +76,11 @@ import com.android.contacts.logging.ScreenEvent.ScreenType;
 import com.android.contacts.model.AccountTypeManager;
 import com.android.contacts.model.account.AccountInfo;
 import com.android.contacts.model.account.AccountWithDataSet;
-import com.android.contacts.preference.ContactsPreferenceActivity;
+import com.android.contacts.ui.debug.DebugOptionsMenu;
+import com.android.contacts.ui.group.detail.GroupActivity;
+import com.android.contacts.ui.group.list.GroupsActivity;
+import com.android.contacts.ui.interactions.account.filter.AccountFilterActivity;
+import com.android.contacts.ui.settings.SettingsActivity;
 import com.android.contacts.util.AccountFilterUtil;
 import com.android.contacts.util.Constants;
 import com.android.contacts.util.ImplicitIntentsUtil;
@@ -99,53 +92,43 @@ import com.android.contacts.util.ViewUtil;
 import com.android.contacts.widget.FloatingActionButtonController;
 import com.android.contactsbind.FeatureHighlightHelper;
 import com.android.contactsbind.HelpUtils;
-import com.android.contactsbind.ObjectFactory;
-
-import com.google.common.util.concurrent.Futures;
+import com.google.android.material.snackbar.Snackbar;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.inject.Inject;
+
+import dagger.Lazy;
+import dagger.hilt.android.AndroidEntryPoint;
+import kotlin.Unit;
+
 /**
  * Displays a list to browse contacts.
  */
+@AndroidEntryPoint
 public class PeopleActivity extends AppCompatContactsActivity implements
-        DrawerFragmentListener,
-        SelectAccountDialogFragment.Listener {
-
-    /** Possible views of Contacts app. */
-    public enum ContactsView {
-        NONE,
-        ALL_CONTACTS,
-        ASSISTANT,
-        GROUP_VIEW,
-        ACCOUNT_VIEW,
-    }
+        DrawerFragmentListener {
 
     private static final String TAG = "PeopleActivity";
     private static final String TAG_ALL = "contacts-all";
     private static final String TAG_UNAVAILABLE = "contacts-unavailable";
-    private static final String TAG_GROUP_VIEW = "contacts-groups";
-    private static final String TAG_SELECT_ACCOUNT_DIALOG = "selectAccountDialog";
-    private static final String TAG_GROUP_NAME_EDIT_DIALOG = "groupNameEditDialog";
 
-    public static final String TAG_ASSISTANT = "contacts-assistant";
-    public static final String TAG_SECOND_LEVEL = "second-level";
-    public static final String TAG_THIRD_LEVEL = "third-level";
-    public static final String TAG_ASSISTANT_HELPER = "assistant-helper";
-    public static final String TAG_DUPLICATES = "DuplicatesFragment";
-    public static final String TAG_DUPLICATES_UTIL = "DuplicatesUtilFragment";
-
-    private static final String KEY_GROUP_URI = "groupUri";
-    private static final String KEY_CONTACTS_VIEW = "contactsView";
-    private static final String KEY_NEW_GROUP_ACCOUNT = "newGroupAccount";
+    private static final int REQUEST_ACCOUNT_FILTER = 1001;
 
     private static final long DRAWER_CLOSE_DELAY = 300L;
 
     private ContactsIntentResolver mIntentResolver;
     private ContactsRequest mRequest;
     private AccountTypeManager mAccountTypeManager;
+
+    @Inject
+    ContactsAccountFilterMapper contactsAccountFilterMapper;
+    @Inject
+    CanSwitchAccounts canSwitchAccounts;
+    @Inject
+    GroupEvents groupEvents;
 
     private FloatingActionButtonController mFloatingActionButtonController;
     private View mFloatingActionButtonContainer;
@@ -154,12 +137,6 @@ public class PeopleActivity extends AppCompatContactsActivity implements
     private ProviderStatusWatcher mProviderStatusWatcher;
     private Integer mProviderStatus;
 
-    private BroadcastReceiver mSaveServiceListener;
-
-    private boolean mShouldSwitchToGroupView;
-
-    private ContactsView mCurrentView;
-
     private CoordinatorLayout mLayoutRoot;
 
     /**
@@ -167,34 +144,29 @@ public class PeopleActivity extends AppCompatContactsActivity implements
      */
     private DefaultContactBrowseListFragment mContactsListFragment;
 
-    private GroupMembersFragment mMembersFragment;
-    private Uri mGroupUri;
-
     /**
-     * True if this activity instance is a re-created one.  i.e. set true after orientation change.
+     * Sequential ID assigned to each instance; used for logging
      */
-    private boolean mIsRecreatedInstance;
-
-    private boolean mShouldSwitchToAllContacts;
-
-    /** Sequential ID assigned to each instance; used for logging */
     private final int mInstanceId;
     private static final AtomicInteger sNextInstanceId = new AtomicInteger();
 
     private ContactListFilterController mContactListFilterController;
 
-    /** Navigation drawer related */
+    /**
+     * Navigation drawer related
+     */
     private DrawerLayout mDrawerLayout;
     private DrawerFragment mDrawerFragment;
     private ContactsActionBarDrawerToggle mToggle;
     private Toolbar mToolbar;
 
-    // The account the new group will be created under.
-    private AccountWithDataSet mNewGroupAccount;
-
     private Object mStatusChangeListenerHandle;
 
     private final Handler mHandler = new Handler();
+    private CanSwitchAccounts.Cancellable canSwitchAccountsJob;
+
+    @Inject
+    Lazy<DebugOptionsMenu> debugOptionsMenu;
 
     private SyncStatusObserver mSyncStatusObserver = new SyncStatusObserver() {
         public void onStatusChanged(int which) {
@@ -250,7 +222,7 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         public void onContactListFilterChanged() {
             final ContactListFilter filter = mContactListFilterController.getFilter();
             handleFilterChangeForFragment(filter);
-            handleFilterChangeForActivity(filter);
+            handleFilterChangeForActivity();
         }
     };
 
@@ -267,7 +239,7 @@ public class PeopleActivity extends AppCompatContactsActivity implements
                 PeopleActivity.this);
 
         public ContactsActionBarDrawerToggle(AppCompatActivity activity, DrawerLayout drawerLayout,
-                Toolbar toolbar, int openDrawerContentDescRes, int closeDrawerContentDescRes) {
+                                             Toolbar toolbar, int openDrawerContentDescRes, int closeDrawerContentDescRes) {
             super(activity, drawerLayout, toolbar, openDrawerContentDescRes,
                     closeDrawerContentDescRes);
         }
@@ -289,18 +261,10 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         }
 
         private void stopSearchAndSelection() {
-            final MultiSelectContactsListFragment listFragment;
-            if (isAllContactsView() || isAccountView()) {
-                listFragment = getListFragment();
-            } else if (isGroupView()) {
-                listFragment = getGroupFragment();
-            } else {
-                listFragment = null;
-            }
-            if (listFragment == null) {
+            if (mContactsListFragment == null) {
                 return;
             }
-            final ActionBarAdapter actionBarAdapter = listFragment.getActionBarAdapter();
+            final ActionBarAdapter actionBarAdapter = mContactsListFragment.getActionBarAdapter();
             if (actionBarAdapter == null) {
                 return;
             }
@@ -393,74 +357,38 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         drawerArrowDrawable.setColor(ContextCompat.getColor(this, R.color.actionbar_icon_color));
         mToggle.setDrawerArrowDrawable(drawerArrowDrawable);
 
-        // Set up navigation mode.
-        if (savedState != null) {
-            mCurrentView = ContactsView.values()[savedState.getInt(KEY_CONTACTS_VIEW)];
-        } else {
-            mCurrentView = ContactsView.ALL_CONTACTS;
-        }
-
-        if (savedState != null && savedState.containsKey(KEY_NEW_GROUP_ACCOUNT)) {
-            mNewGroupAccount = AccountWithDataSet.unstringify(
-                    savedState.getString(KEY_NEW_GROUP_ACCOUNT));
-        }
-
         mContactListFilterController.addListener(mFilterListener);
         mProviderStatusWatcher.addListener(mProviderStatusListener);
 
-        mIsRecreatedInstance = (savedState != null);
-
-        if (mIsRecreatedInstance) {
-            mGroupUri = savedState.getParcelable(KEY_GROUP_URI);
-        }
-
         createViewsAndFragments();
 
+        groupEvents.observeDeleted(this, deletion -> {
+            onGroupDeleted(deletion);
+            return Unit.INSTANCE;
+        });
+
         if (!PermissionsUtil.hasPermission(this, Manifest.permission.POST_NOTIFICATIONS)) {
-            requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 1);
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
         }
 
         if (Log.isLoggable(Constants.PERFORMANCE_TAG, Log.DEBUG)) {
             Log.d(Constants.PERFORMANCE_TAG, "PeopleActivity.onCreate finish");
         }
         getWindow().setBackgroundDrawable(null);
+
+        canSwitchAccountsJob = canSwitchAccounts.invokeWithCallback((canSwitchAccounts) -> {
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    mDrawerFragment.setIsAccountSwitcherVisible(canSwitchAccounts.booleanValue());
+                }
+            });
+            return Unit.INSTANCE;
+        });
     }
 
     @SuppressWarnings("MissingSuperCall") // TODO: Fix me
     @Override
     protected void onNewIntent(Intent intent) {
-        final String action = intent.getAction();
-        if (GroupUtil.ACTION_CREATE_GROUP.equals(action)) {
-            mGroupUri = intent.getData();
-            if (mGroupUri == null) {
-                toast(R.string.groupSavedErrorToast);
-                return;
-            }
-            if (Log.isLoggable(TAG, Log.VERBOSE)) Log.v(TAG, "Received group URI " + mGroupUri);
-            switchView(ContactsView.GROUP_VIEW);
-            mMembersFragment.toastForSaveAction(action);
-            return;
-        }
-
-        if (isGroupSaveAction(action)) {
-            mGroupUri = intent.getData();
-            if (mGroupUri == null) {
-                popSecondLevel();
-                toast(R.string.groupSavedErrorToast);
-                return;
-            }
-            if (Log.isLoggable(TAG, Log.VERBOSE)) Log.v(TAG, "Received group URI " + mGroupUri);
-            // ACTION_REMOVE_FROM_GROUP doesn't reload data, so it shouldn't cause b/32223934
-            // but it's necessary to use the previous fragment since
-            // GroupMembersFragment#mIsEditMode needs to be persisted between remove actions.
-            if (GroupUtil.ACTION_REMOVE_FROM_GROUP.equals(action)) {
-                switchToOrUpdateGroupView(action);
-            } else {
-                switchView(ContactsView.GROUP_VIEW);
-            }
-            mMembersFragment.toastForSaveAction(action);
-        }
-
         setIntent(intent);
 
         if (!processIntent(true)) {
@@ -470,29 +398,15 @@ public class PeopleActivity extends AppCompatContactsActivity implements
 
         mContactListFilterController.checkFilterValidity(false);
 
-        if (!isInSecondLevel()) {
-            // Re-initialize ActionBarAdapter because {@link #onNewIntent(Intent)} doesn't invoke
-            // {@link Fragment#onActivityCreated(Bundle)} where we initialize ActionBarAdapter
-            // initially.
-            mContactsListFragment.setParameters(/* ContactsRequest */ mRequest,
-                    /* fromOnNewIntent */ true);
-            mContactsListFragment.initializeActionBarAdapter(null);
-        }
+        // Re-initialize ActionBarAdapter because {@link #onNewIntent(Intent)} doesn't invoke
+        // {@link Fragment#onActivityCreated(Bundle)} where we initialize ActionBarAdapter
+        // initially.
+        mContactsListFragment.setParameters(/* ContactsRequest */ mRequest,
+                /* fromOnNewIntent */ true);
+        mContactsListFragment.initializeActionBarAdapter(null);
 
         initializeFabVisibility();
         invalidateOptionsMenuIfNeeded();
-    }
-
-    private static boolean isGroupSaveAction(String action) {
-        return GroupUtil.ACTION_UPDATE_GROUP.equals(action)
-                || GroupUtil.ACTION_ADD_TO_GROUP.equals(action)
-                || GroupUtil.ACTION_REMOVE_FROM_GROUP.equals(action);
-    }
-
-    private void toast(int resId) {
-        if (resId >= 0) {
-            Toast.makeText(this, resId, Toast.LENGTH_SHORT).show();
-        }
     }
 
     /**
@@ -501,8 +415,8 @@ public class PeopleActivity extends AppCompatContactsActivity implements
      *
      * @param forNewIntent set true if it's called from {@link #onNewIntent(Intent)}.
      * @return {@code true} if {@link PeopleActivity} should continue running.  {@code false}
-     *         if it shouldn't, in which case the caller should finish() itself and shouldn't do
-     *         farther initialization.
+     * if it shouldn't, in which case the caller should finish() itself and shouldn't do
+     * farther initialization.
      */
     private boolean processIntent(boolean forNewIntent) {
         // Extract relevant information from the intent
@@ -518,22 +432,19 @@ public class PeopleActivity extends AppCompatContactsActivity implements
 
         switch (mRequest.getActionCode()) {
             case ContactsRequest.ACTION_VIEW_CONTACT: {
-                ImplicitIntentsUtil.startQuickContact(
-                        this, mRequest.getContactUri(), ScreenType.UNKNOWN);
+                ImplicitIntentsUtil.startQuickContact(this, mRequest.getContactUri());
                 return false;
             }
             case ContactsRequest.ACTION_INSERT_GROUP: {
-                onCreateGroupMenuItemClicked();
-                return true;
+                // Labels are created from the labels screen
+                startActivity(new Intent(getIntent()).setClass(this, GroupsActivity.class));
+                return false;
             }
-            case ContactsRequest.ACTION_VIEW_GROUP: {
-                mShouldSwitchToGroupView = true;
-                mIsLaunchedIntoGroupView = true;
-                return true;
-            }
+            case ContactsRequest.ACTION_VIEW_GROUP:
             case ContactsRequest.ACTION_EDIT_GROUP: {
-                mShouldSwitchToGroupView = true;
-                return true;
+                startActivity(new Intent(this, GroupActivity.class)
+                        .setData(mRequest.getContactUri()));
+                return false;
             }
         }
         return true;
@@ -545,8 +456,6 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         final FragmentManager fragmentManager = getFragmentManager();
 
         setUpListFragment(fragmentManager);
-
-        mMembersFragment = (GroupMembersFragment) fragmentManager.findFragmentByTag(TAG_GROUP_VIEW);
 
         // Configure floating action button
         mFloatingActionButtonContainer = findViewById(R.id.floating_action_button_container);
@@ -565,12 +474,6 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         invalidateOptionsMenuIfNeeded();
 
         mLayoutRoot = (CoordinatorLayout) findViewById(R.id.root);
-
-        if (mShouldSwitchToGroupView && !mIsRecreatedInstance) {
-            mGroupUri = mRequest.getContactUri();
-            switchToOrUpdateGroupView(GroupUtil.ACTION_SWITCH_GROUP);
-            mShouldSwitchToGroupView = false;
-        }
     }
 
     @Override
@@ -605,8 +508,6 @@ public class PeopleActivity extends AppCompatContactsActivity implements
     protected void onPause() {
         mProviderStatusWatcher.stop();
 
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(mSaveServiceListener);
-
         super.onPause();
 
         ContentResolver.removeStatusChangeListener(mStatusChangeListenerHandle);
@@ -627,10 +528,6 @@ public class PeopleActivity extends AppCompatContactsActivity implements
             updateStatusBarBackground();
         }
 
-        if (mShouldSwitchToAllContacts) {
-            switchToAllContacts();
-        }
-
         mProviderStatusWatcher.start();
         updateViewConfiguration(true);
 
@@ -643,10 +540,6 @@ public class PeopleActivity extends AppCompatContactsActivity implements
 
         initializeFabVisibility();
         initializeHomeVisibility();
-
-        mSaveServiceListener = new SaveServiceListener();
-        LocalBroadcastManager.getInstance(this).registerReceiver(mSaveServiceListener,
-                new IntentFilter(ContactSaveService.BROADCAST_GROUP_DELETED));
     }
 
     public void updateStatusBarBackground() {
@@ -654,7 +547,6 @@ public class PeopleActivity extends AppCompatContactsActivity implements
     }
 
     public void updateStatusBarBackground(int color) {
-        if (!CompatUtils.isLollipopCompatible()) return;
         if (color == -1) {
             mDrawerLayout.setStatusBarBackgroundColor(
                     MaterialColorMapUtils.getStatusBarColor(this));
@@ -669,6 +561,10 @@ public class PeopleActivity extends AppCompatContactsActivity implements
     protected void onDestroy() {
         mProviderStatusWatcher.removeListener(mProviderStatusListener);
         mContactListFilterController.removeListener(mFilterListener);
+        if (canSwitchAccountsJob != null) {
+            canSwitchAccountsJob.cancel();
+            canSwitchAccountsJob = null;
+        }
         super.onDestroy();
     }
 
@@ -681,15 +577,13 @@ public class PeopleActivity extends AppCompatContactsActivity implements
     private void initializeHomeVisibility() {
         // Remove the navigation icon if we return to the fragment in a search or select state
         if (getToolbar() != null && (isListFragmentInSelectionMode()
-                || isListFragmentInSearchMode() || isGroupsFragmentInSelectionMode()
-                || isGroupsFragmentInSearchMode())) {
+                || isListFragmentInSearchMode())) {
             getToolbar().setNavigationIcon(null);
         }
     }
 
     private boolean shouldHideFab() {
-        if (mContactsListFragment != null && mContactsListFragment.getActionBarAdapter() == null
-                || isInSecondLevel()) {
+        if (mContactsListFragment != null && mContactsListFragment.getActionBarAdapter() == null) {
             return true;
         }
         return isListFragmentInSearchMode()
@@ -722,7 +616,7 @@ public class PeopleActivity extends AppCompatContactsActivity implements
                 && (mProviderStatus.equals(providerStatus))) return;
         mProviderStatus = providerStatus;
 
-        final FragmentManager fragmentManager= getFragmentManager();
+        final FragmentManager fragmentManager = getFragmentManager();
         final FragmentTransaction transaction = fragmentManager.beginTransaction();
 
         // Change in CP2's provider status may not take effect immediately, see b/30566908.
@@ -810,21 +704,6 @@ public class PeopleActivity extends AppCompatContactsActivity implements
             closeDrawer();
             return;
         }
-        if (mIsLaunchedIntoGroupView) {
-            finish();
-            return;
-        }
-
-        // Handle the back event in "second level".
-        if (isGroupView()) {
-            onBackPressedGroupView();
-            return;
-        }
-
-        if (isAssistantView()) {
-            onBackPressedAssistantView();
-            return;
-        }
 
         // If feature highlight is present, let it handle the back event before
         // mContactsListFragment.
@@ -838,28 +717,6 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         }
 
         super.onBackPressed();
-    }
-
-    private void onBackPressedGroupView() {
-        if (mMembersFragment.isEditMode()) {
-            mMembersFragment.exitEditMode();
-        } else if (mMembersFragment.getActionBarAdapter().isSelectionMode()) {
-            mMembersFragment.getActionBarAdapter().setSelectionMode(false);
-            mMembersFragment.displayCheckBoxes(false);
-        } else if (mMembersFragment.getActionBarAdapter().isSearchMode()) {
-            mMembersFragment.getActionBarAdapter().setSearchMode(false);
-        } else {
-            switchToAllContacts();
-        }
-    }
-
-    private void onBackPressedAssistantView() {
-        if (!isInThirdLevel()) {
-            switchToAllContacts();
-        } else {
-            setDrawerLockMode(/* enabled */ true);
-            super.onBackPressed();
-        }
     }
 
     // Returns true if back event is handled in this method.
@@ -901,40 +758,7 @@ public class PeopleActivity extends AppCompatContactsActivity implements
                 && mContactsListFragment.getActionBarAdapter().isSearchMode();
     }
 
-    private boolean isGroupsFragmentInSelectionMode() {
-        return mMembersFragment != null && mMembersFragment.getActionBarAdapter() != null
-                && mMembersFragment.getActionBarAdapter().isSelectionMode();
-    }
-
-    private boolean isGroupsFragmentInSearchMode() {
-        return mMembersFragment != null && mMembersFragment.getActionBarAdapter() != null
-                && mMembersFragment.getActionBarAdapter().isSearchMode();
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        if (mNewGroupAccount != null) {
-            outState.putString(KEY_NEW_GROUP_ACCOUNT, mNewGroupAccount.stringify());
-        }
-        outState.putInt(KEY_CONTACTS_VIEW, mCurrentView.ordinal());
-        outState.putParcelable(KEY_GROUP_URI, mGroupUri);
-        outState.putBoolean(KEY_LAUNCHED_INTO_GROUP_VIEW, mIsLaunchedIntoGroupView);
-    }
-
-    private static final String KEY_LAUNCHED_INTO_GROUP_VIEW = "isLaunchedIntoGroupView";
-    private boolean mIsLaunchedIntoGroupView;
-
-    @Override
-    protected void onRestoreInstanceState(Bundle savedInstanceState) {
-        super.onRestoreInstanceState(savedInstanceState);
-        mGroupUri = savedInstanceState.getParcelable(KEY_GROUP_URI);
-        mIsLaunchedIntoGroupView = savedInstanceState.getBoolean(KEY_LAUNCHED_INTO_GROUP_VIEW, false);
-    }
-
-    private void onGroupDeleted(final Intent intent) {
-        if (!ContactSaveService.canUndo(intent)) return;
-
+    private void onGroupDeleted(final GroupDeletion deletion) {
         final AccessibilityManager am =
                 (AccessibilityManager) getSystemService(Context.ACCESSIBILITY_SERVICE);
         //TODO set to INDEFINITE and track user interaction to dismiss b/33208886
@@ -943,13 +767,12 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         final String message = getString(R.string.groupDeletedToast);
 
         final Snackbar snackbar = Snackbar.make(mLayoutRoot, message, length)
-                .setAction(R.string.undo, new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        ContactSaveService.startService(PeopleActivity.this,
-                                ContactSaveService.createUndoIntent(PeopleActivity.this, intent));
-                    }
-                }).setActionTextColor(ContextCompat.getColor(this, R.color.snackbar_action_text));
+                .setAction(R.string.undo, v -> {
+                    Intent intent = ContactSaveService
+                            .createGroupRestoreIntent(PeopleActivity.this, deletion.getUndoData());
+                    ContactSaveService.startService(PeopleActivity.this, intent);
+                })
+                .setActionTextColor(ContextCompat.getColor(this, R.color.snackbar_action_text));
 
         // Announce for a11y talkback
         mLayoutRoot.announceForAccessibility(message);
@@ -958,90 +781,11 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         snackbar.show();
     }
 
-    private class SaveServiceListener extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            switch (intent.getAction()) {
-                case ContactSaveService.BROADCAST_GROUP_DELETED:
-                    onGroupDeleted(intent);
-                    break;
-            }
-        }
+    private void onFilterMenuItemClicked(ContactListFilter filter) {
+        AccountFilterUtil.handleAccountFilterResult(mContactListFilterController, filter);
     }
 
-    private void onGroupMenuItemClicked(long groupId) {
-        if (isGroupView() && mMembersFragment != null
-                && mMembersFragment.isCurrentGroup(groupId)) {
-            return;
-        }
-        mGroupUri = ContentUris.withAppendedId(ContactsContract.Groups.CONTENT_URI, groupId);
-        switchToOrUpdateGroupView(GroupUtil.ACTION_SWITCH_GROUP);
-    }
-
-    private void onFilterMenuItemClicked(Intent intent) {
-        // We must pop second level first to "restart" mContactsListFragment before changing filter.
-        if (isInSecondLevel()) {
-            popSecondLevel();
-            showFabWithAnimation(/* showFab */ true);
-            // HACK: swap the current filter to force listeners to update because the group
-            // member view no longer changes the filter. Fix for b/32223767
-            final ContactListFilter current = mContactListFilterController.getFilter();
-            mContactListFilterController.setContactListFilter(
-                    AccountFilterUtil.createContactsFilter(this), false);
-            mContactListFilterController.setContactListFilter(current, false);
-        }
-        mCurrentView = ContactsView.ACCOUNT_VIEW;
-        AccountFilterUtil.handleAccountFilterResult(mContactListFilterController,
-                AppCompatActivity.RESULT_OK, intent);
-    }
-
-    private void switchToOrUpdateGroupView(String action) {
-        // If group fragment is active and visible, we simply update it.
-        if (mMembersFragment != null && !mMembersFragment.isInactive()) {
-            mMembersFragment.updateExistingGroupFragment(mGroupUri, action);
-        } else {
-            switchView(ContactsView.GROUP_VIEW);
-        }
-    }
-
-    protected void launchAssistant() {
-        switchView(ContactsView.ASSISTANT);
-    }
-
-    private void switchView(ContactsView contactsView) {
-        mCurrentView = contactsView;
-
-        final FragmentManager fragmentManager =  getFragmentManager();
-        final FragmentTransaction transaction = fragmentManager.beginTransaction();
-        popSecondLevel();
-        if (isGroupView()) {
-            mMembersFragment = GroupMembersFragment.newInstance(mGroupUri);
-            transaction.replace(
-                    R.id.contacts_list_container, mMembersFragment, TAG_GROUP_VIEW);
-        } else if (isAssistantView()) {
-            Fragment uiFragment = fragmentManager.findFragmentByTag(TAG_ASSISTANT);
-            Fragment unavailableFragment = fragmentManager.findFragmentByTag(TAG_UNAVAILABLE);
-            if (uiFragment == null) {
-                uiFragment = ObjectFactory.getAssistantFragment();
-            }
-            if (unavailableFragment != null) {
-                transaction.remove(unavailableFragment);
-            }
-            transaction.replace(R.id.contacts_list_container, uiFragment, TAG_ASSISTANT);
-            resetToolBarStatusBarColor();
-        }
-        transaction.addToBackStack(TAG_SECOND_LEVEL);
-        transaction.commit();
-        fragmentManager.executePendingTransactions();
-
-        showFabWithAnimation(/* showFab */ false);
-    }
-
-    public void switchToAllContacts() {
-        popSecondLevel();
-        mShouldSwitchToAllContacts = false;
-        mCurrentView = ContactsView.ALL_CONTACTS;
-        mDrawerFragment.setNavigationItemChecked(ContactsView.ALL_CONTACTS);
+    private void switchToAllContacts() {
         showFabWithAnimation(/* showFab */ true);
         mContactsListFragment.scrollToTop();
         resetFilter();
@@ -1049,26 +793,8 @@ public class PeopleActivity extends AppCompatContactsActivity implements
     }
 
     private void resetFilter() {
-        final Intent intent = new Intent();
         final ContactListFilter filter = AccountFilterUtil.createContactsFilter(this);
-        intent.putExtra(AccountFilterActivity.EXTRA_CONTACT_LIST_FILTER, filter);
-        AccountFilterUtil.handleAccountFilterResult(
-                mContactListFilterController, AppCompatActivity.RESULT_OK, intent);
-    }
-
-    // Reset toolbar and status bar color to Contacts theme color.
-    private void resetToolBarStatusBarColor() {
-        findViewById(R.id.toolbar_frame).setBackgroundColor(
-                ContextCompat.getColor(this, R.color.primary_color));
-        updateStatusBarBackground(ContextCompat.getColor(this, R.color.primary_color_dark));
-    }
-
-    protected DefaultContactBrowseListFragment getListFragment() {
-        return mContactsListFragment;
-    }
-
-    protected GroupMembersFragment getGroupFragment() {
-        return mMembersFragment;
+        AccountFilterUtil.handleAccountFilterResult(mContactListFilterController, filter);
     }
 
     private void handleFilterChangeForFragment(ContactListFilter filter) {
@@ -1079,42 +805,10 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         }
     }
 
-    private void handleFilterChangeForActivity(ContactListFilter filter) {
-        // The filter was changed while this activity was in the background. If we're in the
-        // assistant view Switch to the main contacts list when we resume to prevent
-        // b/31838582 and b/31829161
-        // TODO: this is a hack; we need to do some cleanup of the contact list filter stuff
-        if (isAssistantView() && filter.isContactsFilterType()) {
-            mShouldSwitchToAllContacts = true;
-        }
-
-        if (CompatUtils.isNCompatible()) {
-            getWindow().getDecorView()
-                    .sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED);
-        }
+    private void handleFilterChangeForActivity() {
+        getWindow().getDecorView()
+                .sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED);
         invalidateOptionsMenu();
-    }
-
-    public void updateDrawerGroupMenu(long groupId) {
-        if (mDrawerFragment != null) {
-            mDrawerFragment.updateGroupMenu(groupId);
-        }
-    }
-
-    public void setDrawerLockMode(boolean enabled) {
-        // Prevent drawer from being opened by sliding from the start of screen.
-        mDrawerLayout.setDrawerLockMode(enabled ? DrawerLayout.LOCK_MODE_UNLOCKED
-                : DrawerLayout.LOCK_MODE_LOCKED_CLOSED);
-
-        // Order of these statements matter.
-        // Display back button and disable drawer indicator.
-        if (enabled) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(false);
-            mToggle.setDrawerIndicatorEnabled(true);
-        } else {
-            mToggle.setDrawerIndicatorEnabled(false);
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        }
     }
 
     public Toolbar getToolbar() {
@@ -1133,76 +827,63 @@ public class PeopleActivity extends AppCompatContactsActivity implements
         mToggle.onConfigurationChanged(newConfig);
     }
 
-    protected void onCreateGroupMenuItemClicked() {
-        // Select the account to create the group
-        final Bundle extras = getIntent().getExtras();
-        final Account account = extras == null ? null :
-                (Account) extras.getParcelable(Intents.Insert.EXTRA_ACCOUNT);
-        if (account == null) {
-            selectAccountForNewGroup();
-        } else {
-            final String dataSet = extras == null
-                    ? null : extras.getString(Intents.Insert.EXTRA_DATA_SET);
-            final AccountWithDataSet accountWithDataSet = new AccountWithDataSet(
-                    account.name, account.type, dataSet);
-            onAccountChosen(accountWithDataSet, /* extraArgs */ null);
-        }
-    }
-
-    private void selectAccountForNewGroup() {
-        // This should never block because the DrawerFragment loads the accounts and the
-        // "Create Label" item only exists when that loading finishes
-        final List<AccountInfo> accounts = Futures.getUnchecked(AccountTypeManager.getInstance(this)
-                .filterAccountsAsync(AccountTypeManager.AccountFilter.GROUPS_WRITABLE));
-        if (accounts.isEmpty()) {
-            // We shouldn't present the add group button if there are no writable accounts
-            // but check it since it's possible we are started with an Intent.
-            Toast.makeText(this, R.string.groupCreateFailedToast, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        // If there is a single writable account, use it w/o showing a dialog.
-        if (accounts.size() == 1) {
-            onAccountChosen(accounts.get(0).getAccount(), /* extraArgs */ null);
-            return;
-        }
-        SelectAccountDialogFragment.show(getFragmentManager(), R.string.dialog_new_group_account,
-                AccountTypeManager.AccountFilter.GROUPS_WRITABLE, /* extraArgs */ null,
-                TAG_SELECT_ACCOUNT_DIALOG);
-    }
-
-    // Implementation of SelectAccountDialogFragment.Listener
     @Override
-    public void onAccountChosen(AccountWithDataSet account, Bundle extraArgs) {
-        mNewGroupAccount = account;
-        GroupNameEditDialogFragment.newInstanceForCreation(
-                mNewGroupAccount, GroupUtil.ACTION_CREATE_GROUP)
-                .show(getFragmentManager(), TAG_GROUP_NAME_EDIT_DIALOG);
-    }
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
 
-    @Override
-    public void onAccountSelectorCancelled() {
+        if (requestCode == REQUEST_ACCOUNT_FILTER) {
+            if (resultCode == RESULT_OK && data != null) {
+                ContactsAccountFilter filter = data.getParcelableExtra(
+                        AccountFilterActivity.EXTRA_FILTER, ContactsAccountFilter.class
+                );
+                if (filter instanceof ContactsAccountFilter.All) {
+                    switchToAllContacts();
+                } else if (filter != null) {
+                    onFilterMenuItemClicked(contactsAccountFilterMapper.map(filter));
+                }
+            }
+        }
     }
 
     // Implementation of DrawerFragmentListener
     @Override
-    public void onDrawerItemClicked(){
+    public void onDrawerItemClicked() {
         closeDrawer();
     }
 
     @Override
-    public void onContactsViewSelected(ContactsView mode) {
-        if (mode == ContactsView.ALL_CONTACTS) {
-            switchToAllContacts();
-        } else if (mode == ContactsView.ASSISTANT) {
-            launchAssistant();
-        } else {
-            throw new IllegalStateException("Unknown view " + mode);
-        }
+    public void onAllContactsSelected() {
+        switchToAllContacts();
     }
 
     @Override
-    public void onCreateLabelButtonClicked() {
-        onCreateGroupMenuItemClicked();
+    public void onOpenAccountsFilter() {
+        new Handler().postDelayed(() ->
+                        startActivityForResult(
+                                AccountFilterActivity.buildIntent$app(
+                                        PeopleActivity.this,
+                                        getCurrentAccountFilter()
+                                ),
+                                REQUEST_ACCOUNT_FILTER
+                        ),
+                DRAWER_CLOSE_DELAY
+        );
+
+    }
+
+    private ContactsAccountFilter getCurrentAccountFilter() {
+        return contactsAccountFilterMapper.map(mContactsListFragment.getFilter());
+    }
+
+    @Override
+    public void onOpenGroups() {
+        new Handler().postDelayed(() ->
+                        startActivity(
+                                GroupsActivity.buildIntent$app(PeopleActivity.this, null)
+                        ),
+                DRAWER_CLOSE_DELAY
+        );
+
     }
 
     @Override
@@ -1221,61 +902,8 @@ public class PeopleActivity extends AppCompatContactsActivity implements
     }
 
     @Override
-    public void onGroupViewSelected(GroupListItem groupListItem) {
-        onGroupMenuItemClicked(groupListItem.getGroupId());
-    }
-
-    @Override
-    public void onAccountViewSelected(ContactListFilter filter) {
-        final Intent intent = new Intent();
-        intent.putExtra(AccountFilterActivity.EXTRA_CONTACT_LIST_FILTER, filter);
-        onFilterMenuItemClicked(intent);
-    }
-
-    public boolean isGroupView() {
-        return mCurrentView == ContactsView.GROUP_VIEW;
-    }
-
-    protected boolean isAssistantView() {
-        return mCurrentView == ContactsView.ASSISTANT;
-    }
-
-    protected boolean isAllContactsView() {
-        return mCurrentView == ContactsView.ALL_CONTACTS;
-    }
-
-    protected boolean isAccountView() {
-        return mCurrentView == ContactsView.ACCOUNT_VIEW;
-    }
-
-    public boolean isInSecondLevel() {
-        return isGroupView() || isAssistantView();
-    }
-
-    private boolean isInThirdLevel() {
-        return isLastBackStackTag(TAG_THIRD_LEVEL);
-    }
-
-    private boolean isLastBackStackTag(String tag) {
-        final int count = getFragmentManager().getBackStackEntryCount();
-        if (count > 0) {
-            final FragmentManager.BackStackEntry last =
-                    getFragmentManager().getBackStackEntryAt(count - 1);
-            if (tag == null) {
-                return last.getName() == null;
-            }
-            return tag.equals(last.getName());
-        }
-        return false;
-    }
-
-    private void popSecondLevel() {
-        getFragmentManager().popBackStackImmediate(
-                TAG_ASSISTANT_HELPER, FragmentManager.POP_BACK_STACK_INCLUSIVE);
-        getFragmentManager().popBackStackImmediate(
-                TAG_SECOND_LEVEL, FragmentManager.POP_BACK_STACK_INCLUSIVE);
-        mMembersFragment = null;
-        resetToolBarStatusBarColor();
+    public void onShowDebugOptions() {
+        debugOptionsMenu.get().show(this);
     }
 
     public void closeDrawer() {
@@ -1283,11 +911,9 @@ public class PeopleActivity extends AppCompatContactsActivity implements
     }
 
     private Intent createPreferenceIntent() {
-        final Intent intent = new Intent(this, ContactsPreferenceActivity.class);
-        intent.putExtra(ContactsPreferenceActivity.EXTRA_NEW_LOCAL_PROFILE,
+        final Intent intent = new Intent(this, SettingsActivity.class);
+        intent.putExtra(SettingsActivity.EXTRA_NEW_LOCAL_PROFILE,
                 ContactEditorFragment.INTENT_EXTRA_NEW_LOCAL_PROFILE);
         return intent;
     }
-
-
 }

@@ -1,10 +1,12 @@
 import dev.detekt.gradle.Detekt
 
 plugins {
+    id("contacts.licenses")
     alias(libs.plugins.android.application)
     alias(libs.plugins.detekt)
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.ksp)
 }
 
@@ -14,20 +16,37 @@ java {
     }
 }
 
+tasks.withType<Test>().configureEach {
+    javaLauncher.set(
+        javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        },
+    )
+}
+
 detekt {
     basePath.set(rootDir)
     buildUponDefaultConfig = true
     config.setFrom(rootProject.file("config/detekt/detekt.yml"))
     ignoredBuildTypes = listOf("release")
     parallel = true
-    source.setFrom(files("../src"))
+    source.setFrom(files("../src", "src/test/kotlin"))
 }
 
-tasks.withType<Detekt>().configureEach {
-    setSource(files("../src"))
-    include("**/*.kt")
-    include("**/*.kts")
-    exclude("**/build/**")
+afterEvaluate {
+    tasks.withType<Detekt>().configureEach {
+        include("**/*.kt")
+        include("**/*.kts")
+        exclude("**/build/**")
+    }
+
+    tasks.named<Detekt>("detektDebugSourceSet") {
+        setSource(files("../src"))
+    }
+
+    tasks.named<Detekt>("detektDebugUnitTestSourceSet") {
+        setSource(files("src/test/kotlin"))
+    }
 }
 
 android {
@@ -37,6 +56,7 @@ android {
     namespace = "com.android.contacts"
 
     buildFeatures {
+        buildConfig = true
         compose = true
         resValues = true
     }
@@ -66,9 +86,41 @@ android {
         res.directories.add("../res")
     }
 
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+            all { unitTest ->
+                unitTest.jvmArgs(
+                    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                    "--add-opens=java.base/java.util=ALL-UNNAMED",
+                    "--add-opens=java.base/java.io=ALL-UNNAMED",
+                    "--add-opens=java.base/java.net=ALL-UNNAMED",
+                    "--add-opens=java.base/java.security=ALL-UNNAMED",
+                    "--add-opens=java.base/java.text=ALL-UNNAMED",
+                    "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
+                    "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED",
+                    "--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+                )
+            }
+        }
+    }
+
+    // Uncomment to add the tests folder to the Gradle build path
+    // sourceSets.getByName("androidTest") {
+    //     java.directories.add("../tests/src")
+    // }
+
     lint {
-        abortOnError = false
-        disable += setOf("UnusedResources", "UnusedIds")
+        baseline = file("lint-baseline.xml")
+        checkReleaseBuilds = false
+        warningsAsErrors = true
+        informational += setOf(
+            "AndroidGradlePluginVersion",
+            "GradleDependency",
+            "MissingTranslation",
+            "NewerVersionAvailable",
+        )
     }
 }
 
@@ -76,6 +128,8 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.palette)
     implementation(libs.androidx.swiperefreshlayout)
+    implementation(libs.accompanist.drawablepainter)
+    implementation(libs.coil.compose)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -85,12 +139,14 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
     implementation(libs.guava)
 
+    implementation(libs.kotlinx.immutable)
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.material)
@@ -103,6 +159,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
+    testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockk)
@@ -110,6 +167,7 @@ dependencies {
     testImplementation(libs.mockk.android)
     testImplementation(libs.robolectric)
     testImplementation(libs.turbine)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

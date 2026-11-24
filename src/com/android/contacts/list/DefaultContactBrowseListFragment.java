@@ -24,8 +24,6 @@ import android.content.Context;
 import android.content.CursorLoader;
 import android.content.Intent;
 import android.content.Loader;
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.graphics.PorterDuff;
@@ -47,7 +45,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -63,7 +60,6 @@ import com.android.contacts.Experiments;
 import com.android.contacts.R;
 import com.android.contacts.activities.ActionBarAdapter;
 import com.android.contacts.activities.PeopleActivity;
-import com.android.contacts.compat.CompatUtils;
 import com.android.contacts.interactions.ContactDeletionInteraction;
 import com.android.contacts.interactions.ContactMultiDeletionInteraction;
 import com.android.contacts.interactions.ContactMultiDeletionInteraction.MultiContactDeleteListener;
@@ -75,14 +71,12 @@ import com.android.contacts.model.AccountTypeManager;
 import com.android.contacts.model.account.AccountInfo;
 import com.android.contacts.model.account.AccountWithDataSet;
 import com.android.contacts.preference.ContactsPreferences;
-import com.android.contacts.quickcontact.QuickContactActivity;
 import com.android.contacts.util.AccountFilterUtil;
 import com.android.contacts.util.ImplicitIntentsUtil;
 import com.android.contacts.util.SharedPreferenceUtil;
 import com.android.contacts.util.SyncUtil;
 import com.android.contactsbind.FeatureHighlightHelper;
 import com.android.contactsbind.experiments.Flags;
-
 import com.google.common.util.concurrent.Futures;
 
 import java.util.HashMap;
@@ -99,7 +93,6 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
         implements EnableGlobalSyncDialogFragment.Listener, ContactListFilterListener {
 
     private static final String TAG = "DefaultListFragment";
-    private static final String ENABLE_DEBUG_OPTIONS_HIDDEN_CODE = "debug debug!";
     private static final String KEY_DELETION_IN_PROGRESS = "deletionInProgress";
     private static final String KEY_SEARCH_RESULT_CLICKED = "search_result_clicked";
 
@@ -130,7 +123,6 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
     private int mReasonSyncOff = SyncUtil.SYNC_SETTING_SYNC_ON;
 
     private boolean mContactsAvailable;
-    private boolean mEnableDebugMenuOptions;
     private boolean mIsRecreatedInstance;
     private boolean mOptionsMenuContactsAvailable;
 
@@ -184,7 +176,7 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
                             startSearchOrSelectionMode();
                             break;
                         case ActionBarAdapter.Listener.Action
-                                .BEGIN_STOPPING_SEARCH_AND_SELECTION_MODE:
+                                     .BEGIN_STOPPING_SEARCH_AND_SELECTION_MODE:
                             mActivity.showFabWithAnimation(
                                     /* showFab */ canInsertIntoCurrentFilter());
                             break;
@@ -211,8 +203,6 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
                         case ActionBarAdapter.Listener.Action.CHANGE_SEARCH_QUERY:
                             final String queryString = mActionBarAdapter.getQueryString();
                             setQueryTextToFragment(queryString);
-                            updateDebugOptionsVisibility(
-                                    ENABLE_DEBUG_OPTIONS_HIDDEN_CODE.equals(queryString));
                             break;
                         default:
                             throw new IllegalStateException(
@@ -230,13 +220,6 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
                     if (!SharedPreferenceUtil.getHamburgerPromoTriggerActionHappenedBefore(
                             context)) {
                         SharedPreferenceUtil.setHamburgerPromoTriggerActionHappenedBefore(context);
-                    }
-                }
-
-                private void updateDebugOptionsVisibility(boolean visible) {
-                    if (mEnableDebugMenuOptions != visible) {
-                        mEnableDebugMenuOptions = visible;
-                        mActivity.invalidateOptionsMenu();
                     }
                 }
 
@@ -280,7 +263,9 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
         return mSearchResultClicked;
     }
 
-    /** Resets whether a search result was clicked by the user to false. */
+    /**
+     * Resets whether a search result was clicked by the user to false.
+     */
     public void resetSearchResultClicked() {
         mSearchResultClicked = false;
     }
@@ -308,20 +293,11 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
         if (mActionBarAdapter != null
                 && !mActionBarAdapter.isSearchMode()
                 && !mActionBarAdapter.isSelectionMode()
-                && !isTalkbackOnAndOnPreLollipopMr1()
                 && SharedPreferenceUtil.getShouldShowHamburgerPromo(getContext())) {
             if (FeatureHighlightHelper.showHamburgerFeatureHighlight(mActivity)) {
                 SharedPreferenceUtil.setHamburgerPromoDisplayedBefore(getContext());
             }
         }
-    }
-
-    // There's a crash if we show feature highlight when Talkback is on, on API 21 and below.
-    // See b/31180524.
-    private boolean isTalkbackOnAndOnPreLollipopMr1() {
-        return ((AccessibilityManager) getContext().getSystemService(Context.ACCESSIBILITY_SERVICE))
-                        .isTouchExplorationEnabled()
-                && !CompatUtils.isLollipopMr1Compatible();
     }
 
     private void bindListHeader(int numberOfContacts) {
@@ -460,7 +436,7 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
         final int marginTop =
                 screenHeight / 2
                         - getResources()
-                                .getDimensionPixelSize(R.dimen.empty_home_view_image_offset);
+                        .getDimensionPixelSize(R.dimen.empty_home_view_image_offset);
         params.setMargins(0, marginTop, 0, 0);
         params.gravity = Gravity.CENTER_HORIZONTAL;
         image.setLayoutParams(params);
@@ -662,7 +638,7 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
         final ContactListFilter filter = getFilter();
         final Account account =
                 filter.filterType == ContactListFilter.FILTER_TYPE_ACCOUNT
-                                && filter.isGoogleAccountType()
+                        && filter.isGoogleAccountType()
                         ? new Account(filter.accountName, filter.accountType)
                         : null;
 
@@ -850,7 +826,9 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
         if (!flag) showSearchProgress(false);
     }
 
-    /** Show or hide the directory-search progress spinner. */
+    /**
+     * Show or hide the directory-search progress spinner.
+     */
     private void showSearchProgress(boolean show) {
         if (mSearchProgress != null) {
             mSearchProgress.setVisibility(show ? View.VISIBLE : View.GONE);
@@ -948,8 +926,8 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
                 && !mActionBarAdapter.isSelectionMode()) {
             if (filter.isSyncable()
                     || (filter.shouldShowSyncState()
-                            && SyncUtil.hasSyncableAccount(
-                                    AccountTypeManager.getInstance(getContext())))) {
+                    && SyncUtil.hasSyncableAccount(
+                    AccountTypeManager.getInstance(getContext())))) {
                 swipeRefreshLayout.setEnabled(true);
             }
         }
@@ -971,10 +949,12 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
     }
 
     private final class ContactBrowserActionListener implements OnContactBrowserActionListener {
-        ContactBrowserActionListener() {}
+        ContactBrowserActionListener() {
+        }
 
         @Override
-        public void onSelectionChange() {}
+        public void onSelectionChange() {
+        }
 
         @Override
         public void onViewContactAction(
@@ -985,24 +965,9 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
                         getContext(),
                         new Rect(),
                         contactLookupUri,
-                        QuickContactActivity.MODE_FULLY_EXPANDED,
+                        ContactsContract.QuickContact.MODE_LARGE,
                         null);
             } else {
-                final int previousScreen;
-                if (isSearchMode()) {
-                    previousScreen = ScreenEvent.ScreenType.SEARCH;
-                } else {
-                    if (isAllContactsFilter(getFilter())) {
-                        if (position < getAdapter().getNumberOfFavorites()) {
-                            previousScreen = ScreenEvent.ScreenType.FAVORITES;
-                        } else {
-                            previousScreen = ScreenEvent.ScreenType.ALL_CONTACTS;
-                        }
-                    } else {
-                        previousScreen = ScreenEvent.ScreenType.LIST_ACCOUNT;
-                    }
-                }
-
                 Logger.logListEvent(
                         ListEvent.ActionType.CLICK,
                         /* listType */ getListTypeIncludingSearch(),
@@ -1010,8 +975,7 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
                         /* clickedIndex */ position, /* numSelected */
                         0);
 
-                ImplicitIntentsUtil.startQuickContact(
-                        getActivity(), contactLookupUri, previousScreen);
+                ImplicitIntentsUtil.startQuickContact(getActivity(), contactLookupUri);
             }
         }
 
@@ -1051,7 +1015,9 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
         mContactsAvailable = contactsAvailable;
     }
 
-    /** Set filter via ContactListFilterController */
+    /**
+     * Set filter via ContactListFilterController
+     */
     private void setContactListFilter(ContactListFilter filter) {
         mContactListFilterController.setContactListFilter(
                 filter, /* persistent */ isAllContactsFilter(filter));
@@ -1059,7 +1025,7 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        if (!mContactsAvailable || mActivity.isInSecondLevel()) {
+        if (!mContactsAvailable) {
             // If contacts aren't available or this fragment is not visible, hide all menu items.
             return;
         }
@@ -1086,10 +1052,6 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
                 mActionBarAdapter.isSelectionMode() && getSelectedContactIds().size() > 1;
         makeMenuItemVisible(menu, R.id.menu_join, showLinkContactsOptions);
 
-        // Debug options need to be visible even in search mode.
-        makeMenuItemVisible(
-                menu, R.id.export_database, mEnableDebugMenuOptions && hasExportIntentHandler());
-
         // Light tint the icons for normal mode, dark tint for search or selection mode.
         for (int i = 0; i < menu.size(); ++i) {
             final Drawable icon = menu.getItem(i).getIcon();
@@ -1107,16 +1069,6 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
         if (item != null) {
             item.setVisible(visible);
         }
-    }
-
-    private boolean hasExportIntentHandler() {
-        final Intent intent = new Intent();
-        intent.setAction("com.android.providers.contacts.DUMP_DATABASE");
-        final List<ResolveInfo> receivers =
-                getContext()
-                        .getPackageManager()
-                        .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
-        return receivers != null && receivers.size() > 0;
     }
 
     @Override
@@ -1151,11 +1103,6 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
             return true;
         } else if (id == R.id.menu_delete) {
             deleteSelectedContacts();
-            return true;
-        } else if (id == R.id.export_database) {
-            final Intent intent = new Intent("com.android.providers.contacts.DUMP_DATABASE");
-            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET);
-            ImplicitIntentsUtil.startActivityOutsideApp(getContext(), intent);
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -1323,7 +1270,7 @@ public class DefaultContactBrowseListFragment extends ContactBrowseListFragment
         }
 
         if (mActionBarAdapter != null && !mActionBarAdapter.isSearchMode()) {
-            final String query = new String(new int[] {unicodeChar}, 0, 1);
+            final String query = new String(new int[]{unicodeChar}, 0, 1);
             mActionBarAdapter.setSearchMode(true);
             mActionBarAdapter.setQueryString(query);
             return true;

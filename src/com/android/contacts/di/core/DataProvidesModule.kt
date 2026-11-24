@@ -1,0 +1,88 @@
+package com.android.contacts.di.core
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.preference.PreferenceManager
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.android.contacts.ContactSaveService
+import com.android.contacts.DynamicShortcuts
+import com.android.contacts.database.SimContactDao
+import com.android.contacts.model.AccountTypeManager
+import com.android.contacts.preference.ContactsPreferences
+import com.android.contacts.util.DeviceLocalAccountTypeFactory
+import dagger.Module
+import dagger.Provides
+import dagger.Reusable
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+
+@Module
+@InstallIn(SingletonComponent::class)
+internal class DataProvidesModule {
+
+    @Provides
+    @Reusable
+    fun contactsPreferences(
+        @ApplicationContext context: Context,
+    ): ContactsPreferences {
+        return ContactsPreferences(context)
+    }
+
+    @Provides
+    @Reusable
+    fun accountTypeManager(
+        @ApplicationContext context: Context,
+    ): AccountTypeManager {
+        return AccountTypeManager.getInstance(context)
+    }
+
+    @Provides
+    @Reusable
+    fun deviceLocalAccountTypeFactory(
+        @ApplicationContext context: Context,
+    ): DeviceLocalAccountTypeFactory {
+        return DeviceLocalAccountTypeFactory.Default(context)
+    }
+
+    @Provides
+    @Reusable
+    fun simContactDao(
+        @ApplicationContext context: Context,
+    ): SimContactDao {
+        return SimContactDao.create(context)
+    }
+
+    @Provides
+    @Reusable
+    fun groupsDao(
+        @ApplicationContext context: Context,
+    ): ContactSaveService.GroupsDao {
+        return ContactSaveService.GroupsDaoImpl(context)
+    }
+
+    @Provides
+    @Reusable
+    fun dynamicShortcuts(
+        @ApplicationContext context: Context,
+    ): DynamicShortcuts {
+        return DynamicShortcuts(context)
+    }
+
+    @Provides
+    @Reusable
+    fun localBroadcastManager(
+        @ApplicationContext context: Context,
+    ): LocalBroadcastManager {
+        return LocalBroadcastManager.getInstance(context)
+    }
+
+    @Provides
+    @Reusable
+    fun sharedPreferences(
+        @ApplicationContext context: Context,
+    ): SharedPreferences {
+        @Suppress("DEPRECATION")
+        return PreferenceManager.getDefaultSharedPreferences(context)
+    }
+}

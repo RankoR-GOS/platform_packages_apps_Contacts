@@ -48,19 +48,17 @@ import android.provider.ContactsContract.Groups;
 import android.provider.ContactsContract.Profile;
 import android.provider.ContactsContract.RawContacts;
 import android.provider.ContactsContract.RawContactsEntity;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.support.v4.os.ResultReceiver;
 import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
 
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
 import com.android.contacts.activities.ContactEditorActivity;
-import com.android.contacts.compat.CompatUtils;
-import com.android.contacts.compat.PinnedPositionsCompat;
 import com.android.contacts.database.ContactUpdateUtils;
 import com.android.contacts.database.SimContactDao;
 import com.android.contacts.model.AccountTypeManager;
-import com.android.contacts.model.CPOWrapper;
 import com.android.contacts.model.RawContactDelta;
 import com.android.contacts.model.RawContactDeltaList;
 import com.android.contacts.model.RawContactModifier;
@@ -70,7 +68,6 @@ import com.android.contacts.util.ContactDisplayUtils;
 import com.android.contacts.util.ContactPhotoUtils;
 import com.android.contacts.util.PermissionsUtil;
 import com.android.contactsbind.FeedbackHelper;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -112,7 +109,6 @@ public class ContactSaveService extends IntentService {
 
     public static final String ACTION_CREATE_GROUP = "createGroup";
     public static final String ACTION_RENAME_GROUP = "renameGroup";
-    public static final String ACTION_DELETE_GROUP = "deleteGroup";
     public static final String ACTION_UPDATE_GROUP = "updateGroup";
     public static final String EXTRA_GROUP_ID = "groupId";
     public static final String EXTRA_GROUP_LABEL = "groupLabel";
@@ -146,15 +142,13 @@ public class ContactSaveService extends IntentService {
     public static final String ACTION_SET_RINGTONE = "setRingtone";
     public static final String EXTRA_CUSTOM_RINGTONE = "customRingtone";
 
-    public static final String ACTION_UNDO = "undo";
-    public static final String EXTRA_UNDO_ACTION = "undoAction";
+    public static final String ACTION_RESTORE_GROUP = "restoreGroup";
     public static final String EXTRA_UNDO_DATA = "undoData";
 
     // For debugging and testing what happens when requests are queued up.
     public static final String ACTION_SLEEP = "sleep";
     public static final String EXTRA_SLEEP_DURATION = "sleepDuration";
 
-    public static final String BROADCAST_GROUP_DELETED = "groupDeleted";
     public static final String BROADCAST_LINK_COMPLETE = "linkComplete";
     public static final String BROADCAST_UNLINK_COMPLETE = "unlinkComplete";
 
@@ -228,10 +222,6 @@ public class ContactSaveService extends IntentService {
                     + " receive callback from " + ContactSaveService.class.getName());
         }
         sListeners.add(0, listener);
-    }
-
-    public static boolean canUndo(Intent resultIntent) {
-        return resultIntent.hasExtra(EXTRA_UNDO_DATA);
     }
 
     public static void unregisterListener(Listener listener) {
@@ -332,8 +322,6 @@ public class ContactSaveService extends IntentService {
             createGroup(intent);
         } else if (ACTION_RENAME_GROUP.equals(action)) {
             renameGroup(intent);
-        } else if (ACTION_DELETE_GROUP.equals(action)) {
-            deleteGroup(intent);
         } else if (ACTION_UPDATE_GROUP.equals(action)) {
             updateGroup(intent);
         } else if (ACTION_SET_STARRED.equals(action)) {
@@ -356,8 +344,8 @@ public class ContactSaveService extends IntentService {
             setSendToVoicemail(intent);
         } else if (ACTION_SET_RINGTONE.equals(action)) {
             setRingtone(intent);
-        } else if (ACTION_UNDO.equals(action)) {
-            undo(intent);
+        } else if (ACTION_RESTORE_GROUP.equals(action)) {
+            restoreGroup(intent);
         } else if (ACTION_SLEEP.equals(action)) {
             sleepForDebugging(intent);
         }
@@ -519,13 +507,7 @@ public class ContactSaveService extends IntentService {
         while (tries++ < PERSIST_TRIES) {
             try {
                 // Build operations and try applying
-                final ArrayList<CPOWrapper> diffWrapper = state.buildDiffWrapper();
-
-                final ArrayList<ContentProviderOperation> diff = Lists.newArrayList();
-
-                for (CPOWrapper cpoWrapper : diffWrapper) {
-                    diff.add(cpoWrapper.getOperation());
-                }
+                final ArrayList<ContentProviderOperation> diff = state.buildDiff();
 
                 if (DEBUG) {
                     Log.v(TAG, "Content Provider Operations:");
@@ -553,13 +535,13 @@ public class ContactSaveService extends IntentService {
                     continue;
                 }
 
-                final long rawContactId = getRawContactId(state, diffWrapper, results);
+                final long rawContactId = getRawContactId(state, diff, results);
                 if (rawContactId == -1) {
                     throw new IllegalStateException("Could not determine RawContact ID after save");
                 }
                 // We don't have to check to see if the value is still -1.  If we reach here,
                 // the previous loop iteration didn't succeed, so any ID that we obtained is bogus.
-                insertedRawContactId = getInsertedRawContactId(diffWrapper, results);
+                insertedRawContactId = getInsertedRawContactId(diff, results);
                 if (isProfile) {
                     // Since the profile supports local raw contacts, which may have been completely
                     // removed if all information was removed, we need to do a special query to
@@ -714,30 +696,29 @@ public class ContactSaveService extends IntentService {
      * Find the ID of an existing or newly-inserted raw-contact.  If none exists, return -1.
      */
     private long getRawContactId(RawContactDeltaList state,
-            final ArrayList<CPOWrapper> diffWrapper,
+            final ArrayList<ContentProviderOperation> diff,
             final ContentProviderResult[] results) {
         long existingRawContactId = state.findRawContactId();
         if (existingRawContactId != -1) {
             return existingRawContactId;
         }
 
-        return getInsertedRawContactId(diffWrapper, results);
+        return getInsertedRawContactId(diff, results);
     }
 
     /**
      * Find the ID of a newly-inserted raw-contact.  If none exists, return -1.
      */
     private long getInsertedRawContactId(
-            final ArrayList<CPOWrapper> diffWrapper, final ContentProviderResult[] results) {
+            final ArrayList<ContentProviderOperation> diff, final ContentProviderResult[] results) {
         if (results == null) {
             return -1;
         }
-        final int diffSize = diffWrapper.size();
+        final int diffSize = diff.size();
         final int numResults = results.length;
         for (int i = 0; i < diffSize && i < numResults; i++) {
-            final CPOWrapper cpoWrapper = diffWrapper.get(i);
-            final boolean isInsert = CompatUtils.isInsertCompat(cpoWrapper);
-            if (isInsert && cpoWrapper.getOperation().getUri().getEncodedPath().contains(
+            final ContentProviderOperation cpo = diff.get(i);
+            if (cpo.isInsert() && cpo.getUri().getEncodedPath().contains(
                     RawContacts.CONTENT_URI.getEncodedPath())) {
                 return ContentUris.parseId(results[i].uri);
             }
@@ -793,6 +774,7 @@ public class ContactSaveService extends IntentService {
         // added if the group doesn't exist
         if (groupUri == null) {
             Log.e(TAG, "Couldn't create group with label " + label);
+            showToast(R.string.groupCreateFailedToast);
             return;
         }
 
@@ -852,48 +834,18 @@ public class ContactSaveService extends IntentService {
     }
 
     /**
-     * Creates an intent that can be sent to this service to delete a group.
+     * Creates an intent that can be sent to this service to restore a deleted group.
      */
-    public static Intent createGroupDeletionIntent(Context context, long groupId) {
+    public static Intent createGroupRestoreIntent(Context context, Bundle undoData) {
         final Intent serviceIntent = new Intent(context, ContactSaveService.class);
-        serviceIntent.setAction(ContactSaveService.ACTION_DELETE_GROUP);
-        serviceIntent.putExtra(ContactSaveService.EXTRA_GROUP_ID, groupId);
-
+        serviceIntent.setAction(ContactSaveService.ACTION_RESTORE_GROUP);
+        serviceIntent.putExtra(ContactSaveService.EXTRA_UNDO_DATA, undoData);
         return serviceIntent;
     }
 
-    private void deleteGroup(Intent intent) {
-        long groupId = intent.getLongExtra(EXTRA_GROUP_ID, -1);
-        if (groupId == -1) {
-            Log.e(TAG, "Invalid arguments for deleteGroup request");
-            return;
-        }
-        final Uri groupUri = ContentUris.withAppendedId(Groups.CONTENT_URI, groupId);
-
-        final Intent callbackIntent = new Intent(BROADCAST_GROUP_DELETED);
-        final Bundle undoData = mGroupsDao.captureDeletionUndoData(groupUri);
-        callbackIntent.putExtra(EXTRA_UNDO_ACTION, ACTION_DELETE_GROUP);
-        callbackIntent.putExtra(EXTRA_UNDO_DATA, undoData);
-
-        mGroupsDao.delete(groupUri);
-
-        LocalBroadcastManager.getInstance(this).sendBroadcast(callbackIntent);
+    private void restoreGroup(Intent intent) {
+        mGroupsDao.undoDeletion(intent.getBundleExtra(EXTRA_UNDO_DATA));
     }
-
-    public static Intent createUndoIntent(Context context, Intent resultIntent) {
-        final Intent serviceIntent = new Intent(context, ContactSaveService.class);
-        serviceIntent.setAction(ContactSaveService.ACTION_UNDO);
-        serviceIntent.putExtras(resultIntent);
-        return serviceIntent;
-    }
-
-    private void undo(Intent intent) {
-        final String actionToUndo = intent.getStringExtra(EXTRA_UNDO_ACTION);
-        if (ACTION_DELETE_GROUP.equals(actionToUndo)) {
-            mGroupsDao.undoDeletion(intent.getBundleExtra(EXTRA_UNDO_DATA));
-        }
-    }
-
 
     /**
      * Creates an intent that can be sent to this service to rename a group as
@@ -1042,6 +994,8 @@ public class ContactSaveService extends IntentService {
     }
 
     private void setStarred(Intent intent) {
+        ContentResolver contentResolver = getContentResolver();
+
         Uri contactUri = intent.getParcelableExtra(EXTRA_CONTACT_URI);
         boolean value = intent.getBooleanExtra(EXTRA_STARRED_FLAG, false);
         if (contactUri == null) {
@@ -1051,10 +1005,10 @@ public class ContactSaveService extends IntentService {
 
         final ContentValues values = new ContentValues(1);
         values.put(Contacts.STARRED, value);
-        getContentResolver().update(contactUri, values, null, null);
+        contentResolver.update(contactUri, values, null, null);
 
         // Undemote the contact if necessary
-        final Cursor c = getContentResolver().query(contactUri, new String[] {Contacts._ID},
+        final Cursor c = contentResolver.query(contactUri, new String[] {Contacts._ID},
                 null, null, null);
         if (c == null) {
             return;
@@ -1065,7 +1019,7 @@ public class ContactSaveService extends IntentService {
 
                 // Don't bother undemoting if this contact is the user's profile.
                 if (id < Profile.MIN_ID) {
-                    PinnedPositionsCompat.undemote(getContentResolver(), id);
+                    ContactsContract.PinnedPositions.undemote(contentResolver, id);
                 }
             }
         } finally {
@@ -1881,10 +1835,15 @@ public class ContactSaveService extends IntentService {
                     Data.CONTENT_URI, new String[] { Data.RAW_CONTACT_ID },
                     Data.MIMETYPE + "=? AND " + GroupMembership.GROUP_ROW_ID + "=?",
                     new String[] { GroupMembership.CONTENT_ITEM_TYPE, String.valueOf(groupId) }, null);
-            final long[] memberIds = new long[membersCursor.getCount()];
-            int i = 0;
-            while (membersCursor.moveToNext()) {
-                memberIds[i++] = membersCursor.getLong(0);
+            final long[] memberIds;
+            try {
+                memberIds = new long[membersCursor.getCount()];
+                int i = 0;
+                while (membersCursor.moveToNext()) {
+                    memberIds[i++] = membersCursor.getLong(0);
+                }
+            } finally {
+                membersCursor.close();
             }
             result.putLongArray(KEY_GROUP_MEMBERS, memberIds);
             return result;
@@ -1895,7 +1854,10 @@ public class ContactSaveService extends IntentService {
             if (groupData == null) {
                 return null;
             }
-            final Uri groupUri = contentResolver.insert(Groups.CONTENT_URI, groupData);
+            final Uri groupUri = insertGroup(groupData);
+            if (groupUri == null) {
+                return null;
+            }
             final long groupId = ContentUris.parseId(groupUri);
 
             final long[] memberIds = deletedGroupData.getLongArray(KEY_GROUP_MEMBERS);
@@ -1923,7 +1885,20 @@ public class ContactSaveService extends IntentService {
             values.put(Groups.ACCOUNT_NAME, account.name);
             values.put(Groups.ACCOUNT_TYPE, account.type);
             values.put(Groups.DATA_SET, account.dataSet);
-            return contentResolver.insert(Groups.CONTENT_URI, values);
+            return insertGroup(values);
+        }
+
+        /**
+         * CP2 rejects groups inserted into local and SIM accounts while the default account is
+         * set to a cloud account, so a rejection here is expected rather than fatal.
+         */
+        private Uri insertGroup(ContentValues values) {
+            try {
+                return contentResolver.insert(Groups.CONTENT_URI, values);
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "Couldn't insert group", e);
+                return null;
+            }
         }
 
         public int delete(Uri groupUri) {

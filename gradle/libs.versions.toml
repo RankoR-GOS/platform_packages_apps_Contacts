@@ -1,24 +1,28 @@
 [versions]
-agp = "9.3.1"
+agp = "9.4.1"
 detekt = "2.0.0-alpha.6"
 hilt = "2.60.1"
-kotlin = "2.4.10"
-ksp = "2.3.10"
+kotlin = "2.4.20"
+ksp = "2.3.12"
 ktlint = "1.8.0"
 ktlint-gradle = "14.2.0"
 
 activity-compose = "1.13.0"
-appcompat = "1.7.1"
+appcompat = "1.8.0"
 compose-bom = "2026.06.01"
+lifecycle = "2.10.0"
+kotlinx-immutable = "0.5.2"
 coroutines = "1.11.0"
-guava = "33.6.0-android"
+guava = "33.7.2-android"
 material = "1.14.0"
 palette = "1.0.0"
 swiperefreshlayout = "1.2.0"
+accompanist = "0.37.3"
+coil = "3.4.0"
 
 junit4 = "4.13.2"
 mockk = "1.14.11"
-robolectric = "4.16.1"
+robolectric = "4.17"
 turbine = "1.2.1"
 
 androidx-test-espresso = "3.7.0"
@@ -39,9 +43,12 @@ androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 
 androidx-palette = { module = "androidx.palette:palette", version.ref = "palette" }
 androidx-swiperefreshlayout = { module = "androidx.swiperefreshlayout:swiperefreshlayout", version.ref = "swiperefreshlayout" }
+accompanist-drawablepainter = { module = "com.google.accompanist:accompanist-drawablepainter", version.ref = "accompanist" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 
@@ -49,6 +56,7 @@ hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt"
 hilt-android-testing = { module = "com.google.dagger:hilt-android-testing", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
 
+kotlinx-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinx-immutable" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 
@@ -77,5 +85,6 @@ detekt = { id = "dev.detekt", version.ref = "detekt" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-gradle" }
